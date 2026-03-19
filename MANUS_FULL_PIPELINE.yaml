@@ -1,0 +1,986 @@
+# ============================================================
+# TECHNIK RENDERS — MANUS FULL AUTONOMOUS PIPELINE
+# Start to finish: Idea → Script → Voice → Render → Video → 
+# SEO → Upload → Social Distribution
+# ============================================================
+# INSTRUCTIONS FOR MANUS:
+# Run this entire file top to bottom without stopping.
+# Every section is a task. Execute each task fully before moving.
+# If a step fails, retry once, then log the error and continue.
+# Send a completion report to logivo92@gmail.com when done.
+# ============================================================
+
+MANUS_TASK_START:
+
+  name: "Technik Renders — Daily YouTube Automation"
+  run_mode: autonomous
+  stop_on_error: false
+  notify_email: logivo92@gmail.com
+  channel_name: "Technik Renders"
+  niche: "cinematic luxury automotive"
+  target_platform: YouTube
+  cross_post: [Instagram Reels, TikTok, X]
+
+# ============================================================
+# PHASE 1 — ENVIRONMENT SETUP
+# ============================================================
+
+PHASE_1_SETUP:
+
+  step_1_install_tools:
+    description: "Install all required CLI tools if not already installed"
+    commands:
+      - npm install -g vercel
+      - npm install -g @anthropic-ai/sdk
+      - pip install requests python-dotenv pillow
+    on_fail: log_and_continue
+
+  step_2_load_env:
+    description: "Load environment variables"
+    required_vars:
+      - ANTHROPIC_API_KEY        # From: console.anthropic.com/account/keys
+      - ELEVENLABS_API_KEY       # From: elevenlabs.io/api
+      - YOUTUBE_CLIENT_ID        # From: console.cloud.google.com
+      - YOUTUBE_CLIENT_SECRET    # From: console.cloud.google.com
+      - YOUTUBE_REFRESH_TOKEN    # Generated via OAuth2 flow
+      - VERCEL_TOKEN             # From: vercel.com/account/tokens
+    env_file: .env
+    on_missing: pause_and_request_from_user
+
+  step_3_create_project:
+    description: "Create working directory and project scaffold"
+    commands:
+      - mkdir -p technik-pipeline/output/scripts
+      - mkdir -p technik-pipeline/output/audio
+      - mkdir -p technik-pipeline/output/renders
+      - mkdir -p technik-pipeline/output/thumbnails
+      - mkdir -p technik-pipeline/output/videos
+      - mkdir -p technik-pipeline/output/seo
+      - mkdir -p technik-pipeline/output/social
+      - mkdir -p technik-pipeline/logs
+      - echo "Pipeline initialized" > technik-pipeline/logs/run.log
+
+# ============================================================
+# PHASE 2 — IDEA GENERATION (Claude API)
+# ============================================================
+
+PHASE_2_IDEA:
+
+  step_4_generate_idea:
+    description: "Use Claude API to generate today's video topic"
+    script: |
+      #!/usr/bin/env python3
+      import anthropic, json, datetime, os
+
+      client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+
+      system = """You are a YouTube strategist for Technik Renders — a faceless cinematic automotive channel.
+      You generate high-CPM viral video ideas for a luxury car audience aged 22-45.
+      Output ONLY valid JSON. No markdown. No explanation."""
+
+      prompt = """Generate today's best YouTube video idea for Technik Renders.
+      Return JSON exactly like this:
+      {
+        "title": "video title under 70 chars",
+        "hook": "one sentence hook — what makes someone click",
+        "angle": "the unique editorial angle",
+        "featured_car": "hero car for renders",
+        "render_style": "visual style description",
+        "revenue_type": "AdSense|Affiliate|Sponsor|Product",
+        "affiliate_product": "relevant product to promote",
+        "target_keywords": ["keyword1", "keyword2", "keyword3"],
+        "estimated_cpm": "$8-15"
+      }"""
+
+      message = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=500,
+        system=system,
+        messages=[{"role": "user", "content": prompt}]
+      )
+
+      idea = json.loads(message.content[0].text)
+      today = datetime.date.today().isoformat()
+      idea["date"] = today
+
+      with open("technik-pipeline/output/idea.json", "w") as f:
+        json.dump(idea, f, indent=2)
+
+      print(f"IDEA GENERATED: {idea['title']}")
+      print(f"Featured car: {idea['featured_car']}")
+      print(f"Revenue type: {idea['revenue_type']}")
+    save_output: technik-pipeline/output/idea.json
+
+# ============================================================
+# PHASE 3 — SCRIPT WRITING (Claude API)
+# ============================================================
+
+PHASE_3_SCRIPT:
+
+  step_5_write_script:
+    description: "Write full 10-minute voiceover script using Claude"
+    script: |
+      #!/usr/bin/env python3
+      import anthropic, json, os
+
+      client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+
+      with open("technik-pipeline/output/idea.json") as f:
+        idea = json.load(f)
+
+      system = """You are an elite YouTube scriptwriter for Technik Renders — a faceless cinematic 
+      automotive channel with a dark luxury editorial aesthetic. 
+      Write pure voiceover scripts only. No stage directions. No timestamps. No camera notes.
+      Use ALL-CAPS section headers. High information density. Zero filler.
+      Style: deep luxury documentary narrator — calm, authoritative, cinematic.
+      Every sentence must earn its place."""
+
+      prompt = f"""Write a complete 10-minute YouTube voiceover script.
+
+      Title: "{idea['title']}"
+      Featured car: {idea['featured_car']}
+      Angle: {idea['angle']}
+      Affiliate product to promote: {idea['affiliate_product']}
+
+      STRUCTURE:
+      HOOK
+      [30-second cold open — bold statement or shocking fact. No channel intro. Grip immediately.]
+
+      SECTION 1 — [topic]
+      SECTION 2 — [topic]  
+      SECTION 3 — [topic]
+      SECTION 4 — [topic]
+      SECTION 5 — [topic]
+
+      MID-ROLL CTA
+      [15 seconds — natural integration: "Before we continue — {idea['affiliate_product']} — link in description."]
+
+      CLOSE
+      [One powerful final line. Make viewers want to subscribe and return.]
+
+      Pure voiceover only. No directions."""
+
+      message = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=2000,
+        system=system,
+        messages=[{"role": "user", "content": prompt}]
+      )
+
+      script = message.content[0].text
+      title_slug = idea['title'].lower().replace(' ', '-').replace('—', '').replace("'", '')[:50]
+
+      with open(f"technik-pipeline/output/scripts/script_{title_slug}.txt", "w") as f:
+        f.write(f"TITLE: {idea['title']}\n")
+        f.write(f"DATE: {idea['date']}\n")
+        f.write("="*60 + "\n\n")
+        f.write(script)
+
+      with open("technik-pipeline/output/script_path.txt", "w") as f:
+        f.write(f"technik-pipeline/output/scripts/script_{title_slug}.txt")
+
+      print(f"SCRIPT WRITTEN: {len(script)} characters")
+    depends_on: step_5_write_script
+    save_output: technik-pipeline/output/scripts/
+
+# ============================================================
+# PHASE 4 — VOICEOVER (ElevenLabs API)
+# ============================================================
+
+PHASE_4_VOICEOVER:
+
+  step_6_generate_voiceover:
+    description: "Generate AI voiceover using ElevenLabs API"
+    script: |
+      #!/usr/bin/env python3
+      import requests, json, os
+
+      ELEVENLABS_API_KEY = os.environ["ELEVENLABS_API_KEY"]
+
+      # Technik Renders voice settings
+      # Recommended voice: "Rachel" (calm, authoritative) or "Bella" (luxury feel)
+      # Change VOICE_ID to your saved custom voice ID if you have one
+      VOICE_ID = os.environ.get("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM")  # Rachel default
+
+      with open("technik-pipeline/output/script_path.txt") as f:
+        script_path = f.read().strip()
+
+      with open(script_path) as f:
+        full_text = f.read()
+
+      # Extract just the script content (skip header)
+      script_content = full_text.split("="*60)[-1].strip()
+
+      url = f"https://api.elevenlabs.io/v1/text-to-speech/{VOICE_ID}"
+
+      headers = {
+        "Accept": "audio/mpeg",
+        "Content-Type": "application/json",
+        "xi-api-key": ELEVENLABS_API_KEY
+      }
+
+      data = {
+        "text": script_content,
+        "model_id": "eleven_multilingual_v2",
+        "voice_settings": {
+          "stability": 0.55,
+          "similarity_boost": 0.75,
+          "style": 0.0,
+          "use_speaker_boost": True
+        }
+      }
+
+      print("Generating voiceover via ElevenLabs...")
+      response = requests.post(url, json=data, headers=headers)
+
+      if response.status_code == 200:
+        with open("technik-pipeline/output/audio/voiceover.mp3", "wb") as f:
+          f.write(response.content)
+        print("VOICEOVER GENERATED: technik-pipeline/output/audio/voiceover.mp3")
+      else:
+        print(f"ElevenLabs error {response.status_code}: {response.text}")
+        print("FALLBACK: Script saved — generate voiceover manually at elevenlabs.io")
+    save_output: technik-pipeline/output/audio/voiceover.mp3
+    on_fail: log_and_continue
+
+# ============================================================
+# PHASE 5 — RENDER & THUMBNAIL BRIEFS (Claude API)
+# ============================================================
+
+PHASE_5_RENDERS:
+
+  step_7_generate_render_briefs:
+    description: "Generate Midjourney prompts for renders and thumbnails"
+    script: |
+      #!/usr/bin/env python3
+      import anthropic, json, os
+
+      client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+
+      with open("technik-pipeline/output/idea.json") as f:
+        idea = json.load(f)
+
+      system = """You are a creative director for Technik Renders — a cinematic automotive YouTube channel 
+      with a dark luxury aesthetic similar to Avante Designs. You produce precise Midjourney prompts 
+      that generate stunning automotive renders. Output ONLY valid JSON. No markdown."""
+
+      prompt = f"""Generate render and thumbnail briefs for:
+      Video: "{idea['title']}"
+      Car: {idea['featured_car']}
+      Style: {idea['render_style']}
+
+      Return JSON exactly:
+      {{
+        "b_roll_prompts": [
+          "prompt 1 — for main video footage clip 1",
+          "prompt 2 — for main video footage clip 2", 
+          "prompt 3 — for main video footage clip 3",
+          "prompt 4 — for main video footage clip 4",
+          "prompt 5 — for main video footage clip 5",
+          "prompt 6 — for main video footage clip 6"
+        ],
+        "thumbnail_variants": [
+          {{
+            "label": "Dark Studio",
+            "midjourney_prompt": "full prompt --ar 16:9 --style raw --q 2",
+            "canva_text": "5 words max",
+            "canva_font": "Bebas Neue",
+            "canva_color": "#C9A84C",
+            "canva_position": "bottom-left"
+          }},
+          {{
+            "label": "Motion Blur",
+            "midjourney_prompt": "full prompt --ar 16:9 --style raw --q 2",
+            "canva_text": "5 words max",
+            "canva_font": "Montserrat Black",
+            "canva_color": "#FFFFFF",
+            "canva_position": "centre"
+          }},
+          {{
+            "label": "Detail Close-up",
+            "midjourney_prompt": "full prompt --ar 16:9 --style raw --q 2",
+            "canva_text": "5 words max",
+            "canva_font": "Bebas Neue",
+            "canva_color": "#C9A84C",
+            "canva_position": "top-right"
+          }}
+        ],
+        "higgsfield_video_prompt": "cinematic video prompt for Higgsfield to generate hero footage",
+        "invideo_style": "Cinematic",
+        "invideo_mood": "Luxury Dark"
+      }}"""
+
+      message = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=1500,
+        system=system,
+        messages=[{"role": "user", "content": prompt}]
+      )
+
+      briefs = json.loads(message.content[0].text)
+
+      with open("technik-pipeline/output/renders/render_briefs.json", "w") as f:
+        json.dump(briefs, f, indent=2)
+
+      # Write human-readable version for manual steps
+      with open("technik-pipeline/output/renders/MIDJOURNEY_PROMPTS.txt", "w") as f:
+        f.write("="*60 + "\n")
+        f.write("TECHNIK RENDERS — MIDJOURNEY PROMPTS\n")
+        f.write("="*60 + "\n\n")
+        f.write("B-ROLL CLIPS (run each in Midjourney, save as clip_1 through clip_6):\n\n")
+        for i, p in enumerate(briefs['b_roll_prompts'], 1):
+          f.write(f"CLIP {i}:\n{p}\n\n")
+        f.write("="*60 + "\n")
+        f.write("THUMBNAIL VARIANTS:\n\n")
+        for v in briefs['thumbnail_variants']:
+          f.write(f"VARIANT — {v['label']}:\n")
+          f.write(f"Midjourney: {v['midjourney_prompt']}\n")
+          f.write(f"Canva text: {v['canva_text']}\n")
+          f.write(f"Font: {v['canva_font']} | Colour: {v['canva_color']} | Position: {v['canva_position']}\n\n")
+        f.write("="*60 + "\n")
+        f.write("HIGGSFIELD HERO PROMPT:\n")
+        f.write(briefs['higgsfield_video_prompt'] + "\n")
+
+      print("RENDER BRIEFS GENERATED")
+      print(f"B-roll prompts: {len(briefs['b_roll_prompts'])}")
+      print(f"Thumbnail variants: {len(briefs['thumbnail_variants'])}")
+    save_output: technik-pipeline/output/renders/
+
+# ============================================================
+# PHASE 6 — SEO PACKAGE (Claude API)
+# ============================================================
+
+PHASE_6_SEO:
+
+  step_8_generate_seo:
+    description: "Generate complete YouTube SEO package"
+    script: |
+      #!/usr/bin/env python3
+      import anthropic, json, os
+
+      client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+
+      with open("technik-pipeline/output/idea.json") as f:
+        idea = json.load(f)
+
+      system = """You are a YouTube SEO specialist for Technik Renders — a cinematic automotive channel.
+      Produce metadata that ranks and converts. Target high-CPM automotive audiences.
+      Output ONLY valid JSON. No markdown."""
+
+      prompt = f"""Generate complete YouTube SEO package for:
+      Title: "{idea['title']}"
+      Car: {idea['featured_car']}
+      Keywords: {idea['target_keywords']}
+      Affiliate: {idea['affiliate_product']}
+
+      Return JSON exactly:
+      {{
+        "seo_title": "under 70 chars, keyword-first",
+        "description": "230-word description with primary keyword in line 1, 3 keyword variations, [AFFILIATE LINK] placeholder, subscribe CTA at end",
+        "tags": ["tag1","tag2","tag3","tag4","tag5","tag6","tag7","tag8","tag9","tag10","tag11","tag12","tag13","tag14","tag15","tag16","tag17","tag18"],
+        "chapters": [
+          {{"time": "0:00", "title": "chapter name"}},
+          {{"time": "1:20", "title": "chapter name"}},
+          {{"time": "2:45", "title": "chapter name"}},
+          {{"time": "4:30", "title": "chapter name"}},
+          {{"time": "6:15", "title": "chapter name"}},
+          {{"time": "8:00", "title": "chapter name"}},
+          {{"time": "9:20", "title": "chapter name"}}
+        ],
+        "hashtags": ["#hashtag1","#hashtag2","#hashtag3","#hashtag4","#hashtag5"],
+        "thumbnail_text": "5 bold words for overlay",
+        "category": "Autos & Vehicles",
+        "language": "en",
+        "made_for_kids": false
+      }}"""
+
+      message = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=1000,
+        system=system,
+        messages=[{"role": "user", "content": prompt}]
+      )
+
+      seo = json.loads(message.content[0].text)
+
+      with open("technik-pipeline/output/seo/seo_package.json", "w") as f:
+        json.dump(seo, f, indent=2)
+
+      # Build chapters string for description
+      chapters_str = "\n".join([f"{c['time']} {c['title']}" for c in seo['chapters']])
+      hashtags_str = " ".join(seo['hashtags'])
+
+      # Build full description with chapters
+      full_description = seo['description'].replace(
+        "[AFFILIATE LINK]", 
+        f"[AFFILIATE LINK — {idea['affiliate_product']}]"
+      )
+      full_description += f"\n\n— TIMESTAMPS —\n{chapters_str}"
+      full_description += f"\n\n{hashtags_str}"
+
+      # Write upload-ready file
+      with open("technik-pipeline/output/seo/UPLOAD_READY.txt", "w") as f:
+        f.write("="*60 + "\n")
+        f.write("YOUTUBE UPLOAD PACKAGE — PASTE READY\n")
+        f.write("="*60 + "\n\n")
+        f.write(f"TITLE:\n{seo['seo_title']}\n\n")
+        f.write(f"DESCRIPTION:\n{full_description}\n\n")
+        f.write(f"TAGS (comma separated):\n{', '.join(seo['tags'])}\n\n")
+        f.write(f"THUMBNAIL TEXT:\n{seo['thumbnail_text']}\n\n")
+        f.write(f"CATEGORY: {seo['category']}\n")
+        f.write(f"LANGUAGE: {seo['language']}\n")
+        f.write(f"MADE FOR KIDS: {seo['made_for_kids']}\n")
+
+      print("SEO PACKAGE GENERATED")
+      print(f"Title: {seo['seo_title']}")
+      print(f"Tags: {len(seo['tags'])}")
+    save_output: technik-pipeline/output/seo/
+
+# ============================================================
+# PHASE 7 — SOCIAL COPY (Claude API)
+# ============================================================
+
+PHASE_7_SOCIAL:
+
+  step_9_generate_social_copy:
+    description: "Generate social media captions for all platforms"
+    script: |
+      #!/usr/bin/env python3
+      import anthropic, json, os
+
+      client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+
+      with open("technik-pipeline/output/idea.json") as f:
+        idea = json.load(f)
+      with open("technik-pipeline/output/seo/seo_package.json") as f:
+        seo = json.load(f)
+
+      system = """You are a social media strategist for Technik Renders — a cinematic automotive brand.
+      Write platform-native captions that drive clicks to YouTube.
+      Output ONLY valid JSON. No markdown."""
+
+      prompt = f"""Write social media captions for a new YouTube video:
+      Title: "{idea['title']}"
+      Hook: "{idea['hook']}"
+      Car: {idea['featured_car']}
+      YouTube link placeholder: [YOUTUBE_LINK]
+
+      Return JSON exactly:
+      {{
+        "instagram_reel_caption": "Instagram caption under 150 chars, punchy, ends with link in bio CTA. Include 5 relevant hashtags.",
+        "tiktok_caption": "TikTok caption under 100 chars, trend-aware, hook-first. Include 3 hashtags.",
+        "x_post": "X/Twitter post under 240 chars with link. Bold claim first.",
+        "instagram_story_text": "5 words for story overlay — bold, curiosity-driven",
+        "youtube_community_post": "YouTube community post under 200 chars to announce the video to subscribers"
+      }}"""
+
+      message = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=600,
+        system=system,
+        messages=[{"role": "user", "content": prompt}]
+      )
+
+      social = json.loads(message.content[0].text)
+
+      with open("technik-pipeline/output/social/social_copy.json", "w") as f:
+        json.dump(social, f, indent=2)
+
+      with open("technik-pipeline/output/social/SOCIAL_READY.txt", "w") as f:
+        f.write("="*60 + "\n")
+        f.write("SOCIAL MEDIA COPY — PASTE READY\n")
+        f.write("="*60 + "\n\n")
+        for platform, copy in social.items():
+          f.write(f"{platform.upper().replace('_', ' ')}:\n{copy}\n\n")
+
+      print("SOCIAL COPY GENERATED for Instagram, TikTok, X, YouTube Community")
+    save_output: technik-pipeline/output/social/
+
+# ============================================================
+# PHASE 8 — YOUTUBE UPLOAD (YouTube Data API v3)
+# ============================================================
+
+PHASE_8_UPLOAD:
+
+  step_10_upload_to_youtube:
+    description: "Upload video to YouTube with full metadata using YouTube Data API"
+    note: "Requires video file at technik-pipeline/output/videos/final_video.mp4"
+    script: |
+      #!/usr/bin/env python3
+      import json, os, sys
+      from googleapiclient.discovery import build
+      from googleapiclient.http import MediaFileUpload
+      from google.oauth2.credentials import Credentials
+      from google.auth.transport.requests import Request
+
+      VIDEO_PATH = "technik-pipeline/output/videos/final_video.mp4"
+      THUMBNAIL_PATH = "technik-pipeline/output/thumbnails/thumbnail_A.jpg"
+
+      if not os.path.exists(VIDEO_PATH):
+        print("VIDEO FILE NOT FOUND — manual upload required")
+        print(f"Place your video at: {VIDEO_PATH}")
+        print("Then re-run this phase only")
+        print("\nUPLOAD PACKAGE ready at: technik-pipeline/output/seo/UPLOAD_READY.txt")
+        sys.exit(0)
+
+      # Load credentials
+      creds = Credentials(
+        token=None,
+        refresh_token=os.environ["YOUTUBE_REFRESH_TOKEN"],
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=os.environ["YOUTUBE_CLIENT_ID"],
+        client_secret=os.environ["YOUTUBE_CLIENT_SECRET"],
+        scopes=["https://www.googleapis.com/auth/youtube.upload",
+                "https://www.googleapis.com/auth/youtube"]
+      )
+      creds.refresh(Request())
+
+      youtube = build("youtube", "v3", credentials=creds)
+
+      with open("technik-pipeline/output/seo/seo_package.json") as f:
+        seo = json.load(f)
+      with open("technik-pipeline/output/idea.json") as f:
+        idea = json.load(f)
+
+      # Build full description
+      chapters_str = "\n".join([f"{c['time']} {c['title']}" for c in seo['chapters']])
+      hashtags_str = " ".join(seo['hashtags'])
+      full_description = seo['description'] + f"\n\n— TIMESTAMPS —\n{chapters_str}\n\n{hashtags_str}"
+
+      body = {
+        "snippet": {
+          "title": seo["seo_title"],
+          "description": full_description,
+          "tags": seo["tags"],
+          "categoryId": "2",  # Autos & Vehicles
+          "defaultLanguage": "en",
+          "defaultAudioLanguage": "en"
+        },
+        "status": {
+          "privacyStatus": "public",
+          "selfDeclaredMadeForKids": False,
+          "publishAt": None  # Publish immediately
+        }
+      }
+
+      media = MediaFileUpload(VIDEO_PATH, chunksize=-1, resumable=True)
+
+      print("Uploading to YouTube...")
+      request = youtube.videos().insert(part=",".join(body.keys()), body=body, media_body=media)
+
+      response = None
+      while response is None:
+        status, response = request.next_chunk()
+        if status:
+          print(f"Upload progress: {int(status.progress() * 100)}%")
+
+      video_id = response["id"]
+      video_url = f"https://youtube.com/watch?v={video_id}"
+      print(f"VIDEO UPLOADED: {video_url}")
+
+      # Set thumbnail
+      if os.path.exists(THUMBNAIL_PATH):
+        youtube.thumbnails().set(
+          videoId=video_id,
+          media_body=MediaFileUpload(THUMBNAIL_PATH)
+        ).execute()
+        print("THUMBNAIL SET")
+
+      # Save video ID for social distribution
+      with open("technik-pipeline/output/video_id.txt", "w") as f:
+        f.write(video_id)
+
+      with open("technik-pipeline/output/video_url.txt", "w") as f:
+        f.write(video_url)
+
+      print(f"\nYOUTUBE UPLOAD COMPLETE")
+      print(f"URL: {video_url}")
+    depends_on: [step_8_generate_seo, step_9_generate_social_copy]
+    pip_install: [google-api-python-client, google-auth, google-auth-httplib2]
+    save_output: technik-pipeline/output/video_url.txt
+
+# ============================================================
+# PHASE 9 — SOCIAL DISTRIBUTION (via APIs)
+# ============================================================
+
+PHASE_9_SOCIAL_DISTRIBUTION:
+
+  step_11_post_to_social:
+    description: "Distribute video clip and captions to all social platforms"
+    note: "Requires social API keys in .env — see credentials section below"
+    script: |
+      #!/usr/bin/env python3
+      import json, os, requests
+
+      with open("technik-pipeline/output/social/social_copy.json") as f:
+        social = json.load(f)
+
+      video_url = ""
+      if os.path.exists("technik-pipeline/output/video_url.txt"):
+        with open("technik-pipeline/output/video_url.txt") as f:
+          video_url = f.read().strip()
+
+      results = {}
+
+      # ── X / TWITTER ──────────────────────────────────────
+      X_BEARER_TOKEN = os.environ.get("X_BEARER_TOKEN", "")
+      X_API_KEY = os.environ.get("X_API_KEY", "")
+      X_API_SECRET = os.environ.get("X_API_SECRET", "")
+      X_ACCESS_TOKEN = os.environ.get("X_ACCESS_TOKEN", "")
+      X_ACCESS_SECRET = os.environ.get("X_ACCESS_SECRET", "")
+
+      if X_ACCESS_TOKEN:
+        try:
+          import tweepy
+          client = tweepy.Client(
+            consumer_key=X_API_KEY,
+            consumer_secret=X_API_SECRET,
+            access_token=X_ACCESS_TOKEN,
+            access_token_secret=X_ACCESS_SECRET
+          )
+          x_text = social["x_post"].replace("[YOUTUBE_LINK]", video_url)
+          tweet = client.create_tweet(text=x_text)
+          results["X"] = f"Posted — tweet ID: {tweet.data['id']}"
+          print(f"X POST LIVE: {x_text}")
+        except Exception as e:
+          results["X"] = f"Failed: {str(e)}"
+      else:
+        results["X"] = "SKIPPED — X_ACCESS_TOKEN not set"
+
+      # ── INSTAGRAM (via Meta Graph API) ───────────────────
+      INSTAGRAM_USER_ID = os.environ.get("INSTAGRAM_USER_ID", "")
+      INSTAGRAM_ACCESS_TOKEN = os.environ.get("INSTAGRAM_ACCESS_TOKEN", "")
+
+      if INSTAGRAM_ACCESS_TOKEN and INSTAGRAM_USER_ID:
+        try:
+          ig_caption = social["instagram_reel_caption"].replace("[YOUTUBE_LINK]", f"Link in bio → {video_url}")
+          # Note: Reels require a video URL hosted publicly
+          # For automation, host the clip on your server or use a CDN URL
+          REEL_VIDEO_URL = os.environ.get("REEL_VIDEO_URL", "")
+          if REEL_VIDEO_URL:
+            create_url = f"https://graph.facebook.com/v18.0/{INSTAGRAM_USER_ID}/reels"
+            create_payload = {
+              "video_url": REEL_VIDEO_URL,
+              "caption": ig_caption,
+              "access_token": INSTAGRAM_ACCESS_TOKEN
+            }
+            create_resp = requests.post(create_url, data=create_payload).json()
+            creation_id = create_resp.get("id")
+            if creation_id:
+              publish_url = f"https://graph.facebook.com/v18.0/{INSTAGRAM_USER_ID}/media_publish"
+              pub_resp = requests.post(publish_url, data={"creation_id": creation_id, "access_token": INSTAGRAM_ACCESS_TOKEN}).json()
+              results["Instagram"] = f"Reel published — ID: {pub_resp.get('id')}"
+            else:
+              results["Instagram"] = f"Container failed: {create_resp}"
+          else:
+            results["Instagram"] = "SKIPPED — REEL_VIDEO_URL not set (need public video URL)"
+        except Exception as e:
+          results["Instagram"] = f"Failed: {str(e)}"
+      else:
+        results["Instagram"] = "SKIPPED — Instagram tokens not set"
+
+      # ── TIKTOK (via TikTok Content Posting API) ───────────
+      TIKTOK_ACCESS_TOKEN = os.environ.get("TIKTOK_ACCESS_TOKEN", "")
+      if TIKTOK_ACCESS_TOKEN:
+        try:
+          # TikTok requires video upload via their API
+          # Direct post with caption only (video upload is separate)
+          results["TikTok"] = "TikTok requires manual video upload — caption ready in social/SOCIAL_READY.txt"
+        except Exception as e:
+          results["TikTok"] = f"Failed: {str(e)}"
+      else:
+        results["TikTok"] = "SKIPPED — TIKTOK_ACCESS_TOKEN not set"
+
+      # ── YOUTUBE COMMUNITY POST ────────────────────────────
+      from google.oauth2.credentials import Credentials
+      from google.auth.transport.requests import Request
+      from googleapiclient.discovery import build
+
+      try:
+        creds = Credentials(
+          token=None,
+          refresh_token=os.environ.get("YOUTUBE_REFRESH_TOKEN", ""),
+          token_uri="https://oauth2.googleapis.com/token",
+          client_id=os.environ.get("YOUTUBE_CLIENT_ID", ""),
+          client_secret=os.environ.get("YOUTUBE_CLIENT_SECRET", ""),
+          scopes=["https://www.googleapis.com/auth/youtube"]
+        )
+        if creds.refresh_token:
+          creds.refresh(Request())
+          youtube = build("youtube", "v3", credentials=creds)
+          community_text = social["youtube_community_post"].replace("[YOUTUBE_LINK]", video_url)
+          youtube.communityPosts().insert(
+            part="snippet",
+            body={"snippet": {"type": "textPost", "textOriginalContent": {"text": community_text}}}
+          ).execute()
+          results["YouTube Community"] = "Community post published"
+      except Exception as e:
+        results["YouTube Community"] = f"Failed: {str(e)}"
+
+      # ── SAVE DISTRIBUTION REPORT ─────────────────────────
+      with open("technik-pipeline/output/social/distribution_report.json", "w") as f:
+        json.dump(results, f, indent=2)
+
+      print("\nDISTRIBUTION REPORT:")
+      for platform, status in results.items():
+        print(f"  {platform}: {status}")
+    pip_install: [tweepy, requests, google-api-python-client, google-auth]
+    save_output: technik-pipeline/output/social/distribution_report.json
+
+# ============================================================
+# PHASE 10 — COMPLETION REPORT (Gmail)
+# ============================================================
+
+PHASE_10_REPORT:
+
+  step_12_send_completion_report:
+    description: "Email completion report to logivo92@gmail.com"
+    script: |
+      #!/usr/bin/env python3
+      import json, os, datetime, smtplib
+      from email.mime.multipart import MIMEMultipart
+      from email.mime.text import MIMEText
+
+      # Load all outputs
+      with open("technik-pipeline/output/idea.json") as f:
+        idea = json.load(f)
+
+      seo = {}
+      try:
+        with open("technik-pipeline/output/seo/seo_package.json") as f:
+          seo = json.load(f)
+      except: pass
+
+      distribution = {}
+      try:
+        with open("technik-pipeline/output/social/distribution_report.json") as f:
+          distribution = json.load(f)
+      except: pass
+
+      video_url = "Not yet uploaded"
+      try:
+        with open("technik-pipeline/output/video_url.txt") as f:
+          video_url = f.read().strip()
+      except: pass
+
+      social_copy = {}
+      try:
+        with open("technik-pipeline/output/social/social_copy.json") as f:
+          social_copy = json.load(f)
+      except: pass
+
+      now = datetime.datetime.now().strftime("%d %B %Y, %H:%M")
+
+      html = f"""
+      <html><body style="font-family:Arial,sans-serif;font-size:14px;color:#111;max-width:680px;margin:0 auto;padding:20px;">
+      <h1 style="font-size:20px;font-weight:700;background:#000;color:#c9a84c;padding:16px 20px;border-radius:6px;">
+        Technik Renders — Daily Pipeline Complete
+      </h1>
+      <p style="color:#555;font-size:13px;">Run completed: {now}</p>
+
+      <h2 style="font-size:16px;margin-top:24px;">Today's Video</h2>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <tr style="background:#f9f9f9;"><td style="padding:10px;border:1px solid #eee;font-weight:600;width:30%;">Title</td><td style="padding:10px;border:1px solid #eee;">{idea.get('title','—')}</td></tr>
+        <tr><td style="padding:10px;border:1px solid #eee;font-weight:600;">SEO Title</td><td style="padding:10px;border:1px solid #eee;">{seo.get('seo_title', idea.get('title','—'))}</td></tr>
+        <tr style="background:#f9f9f9;"><td style="padding:10px;border:1px solid #eee;font-weight:600;">Featured Car</td><td style="padding:10px;border:1px solid #eee;">{idea.get('featured_car','—')}</td></tr>
+        <tr><td style="padding:10px;border:1px solid #eee;font-weight:600;">Revenue Type</td><td style="padding:10px;border:1px solid #eee;">{idea.get('revenue_type','—')}</td></tr>
+        <tr style="background:#f9f9f9;"><td style="padding:10px;border:1px solid #eee;font-weight:600;">Affiliate</td><td style="padding:10px;border:1px solid #eee;">{idea.get('affiliate_product','—')}</td></tr>
+        <tr><td style="padding:10px;border:1px solid #eee;font-weight:600;">YouTube URL</td><td style="padding:10px;border:1px solid #eee;"><a href="{video_url}">{video_url}</a></td></tr>
+      </table>
+
+      <h2 style="font-size:16px;margin-top:24px;">Distribution Status</h2>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        {''.join([f'<tr {"style=background:#f9f9f9;" if i%2==0 else ""}><td style="padding:10px;border:1px solid #eee;font-weight:600;">{k}</td><td style="padding:10px;border:1px solid #eee;">{v}</td></tr>' for i,(k,v) in enumerate(distribution.items())])}
+      </table>
+
+      <h2 style="font-size:16px;margin-top:24px;">Manual Steps Still Required</h2>
+      <ol style="font-size:13px;line-height:2;color:#333;">
+        <li>Run Midjourney prompts → save renders to <code>output/renders/</code></li>
+        <li>Run Higgsfield hero clip → add to <code>output/videos/</code></li>
+        <li>Assemble video in Invideo AI → export to <code>output/videos/final_video.mp4</code></li>
+        <li>Create thumbnails in Canva → save to <code>output/thumbnails/</code></li>
+        <li>Re-run Phase 8 (upload) once video file exists</li>
+        <li>Activate TubeBuddy A/B thumbnail test after upload</li>
+      </ol>
+
+      <h2 style="font-size:16px;margin-top:24px;">Social Captions Ready</h2>
+      <div style="background:#f5f5f5;padding:14px;border-radius:6px;font-size:12px;white-space:pre-wrap;font-family:'Courier New',monospace;">
+        INSTAGRAM: {social_copy.get('instagram_reel_caption','—')}
+
+        TIKTOK: {social_copy.get('tiktok_caption','—')}
+
+        X: {social_copy.get('x_post','—')}
+      </div>
+
+      <p style="font-size:11px;color:#aaa;margin-top:24px;border-top:1px solid #eee;padding-top:12px;">
+        Technik Renders — Automated by Claude AI + Manus Pipeline
+      </p>
+      </body></html>
+      """
+
+      # Send via Gmail SMTP
+      GMAIL_USER = "logivo92@gmail.com"
+      GMAIL_APP_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD", "")
+
+      if GMAIL_APP_PASSWORD:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = f"Technik Renders — Pipeline Complete | {idea.get('title','Daily Run')[:40]}"
+        msg["From"] = GMAIL_USER
+        msg["To"] = GMAIL_USER
+        msg.attach(MIMEText(html, "html"))
+
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+          server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
+          server.sendmail(GMAIL_USER, GMAIL_USER, msg.as_string())
+
+        print("COMPLETION EMAIL SENT to logivo92@gmail.com")
+      else:
+        with open("technik-pipeline/output/completion_report.html", "w") as f:
+          f.write(html)
+        print("GMAIL_APP_PASSWORD not set — report saved to output/completion_report.html")
+
+    save_output: technik-pipeline/output/completion_report.html
+
+# ============================================================
+# CREDENTIALS NEEDED — GET THESE ONCE, REUSE FOREVER
+# ============================================================
+
+CREDENTIALS_SETUP:
+
+  anthropic_api_key:
+    url: https://console.anthropic.com/account/keys
+    env_var: ANTHROPIC_API_KEY
+    required: true
+
+  elevenlabs_api_key:
+    url: https://elevenlabs.io/api
+    env_var: ELEVENLABS_API_KEY
+    required: true
+
+  elevenlabs_voice_id:
+    note: "Your saved voice ID in ElevenLabs — get from voice library URL"
+    env_var: ELEVENLABS_VOICE_ID
+    default: "21m00Tcm4TlvDq8ikWAM"  # Rachel — change to your custom voice
+    required: false
+
+  youtube_api:
+    url: https://console.cloud.google.com
+    steps:
+      - Create project → Enable YouTube Data API v3
+      - Create OAuth 2.0 credentials → Download client_secret.json
+      - Run OAuth flow to get refresh token (one-time)
+    env_vars:
+      - YOUTUBE_CLIENT_ID
+      - YOUTUBE_CLIENT_SECRET
+      - YOUTUBE_REFRESH_TOKEN
+    required: for_auto_upload
+
+  x_twitter:
+    url: https://developer.twitter.com/en/portal/dashboard
+    env_vars:
+      - X_API_KEY
+      - X_API_SECRET
+      - X_ACCESS_TOKEN
+      - X_ACCESS_SECRET
+    required: for_x_posting
+
+  instagram:
+    url: https://developers.facebook.com/apps
+    note: "Requires Meta Business account + Instagram Professional account"
+    env_vars:
+      - INSTAGRAM_USER_ID
+      - INSTAGRAM_ACCESS_TOKEN
+      - REEL_VIDEO_URL  # Public URL of the video clip to post as Reel
+    required: for_instagram_posting
+
+  gmail_app_password:
+    url: https://myaccount.google.com/apppasswords
+    note: "Enable 2FA first, then create App Password for Mail"
+    env_var: GMAIL_APP_PASSWORD
+    required: for_email_reports
+
+  vercel_token:
+    url: https://vercel.com/account/tokens
+    env_var: VERCEL_TOKEN
+    required: for_dashboard_deploy
+
+# ============================================================
+# .ENV FILE TEMPLATE — CREATE THIS FILE: .env
+# ============================================================
+
+ENV_TEMPLATE: |
+  # TECHNIK RENDERS — PIPELINE CREDENTIALS
+  # Fill in each value. Keep this file private. Never share.
+
+  # Core AI
+  ANTHROPIC_API_KEY=sk-ant-...
+  ELEVENLABS_API_KEY=...
+  ELEVENLABS_VOICE_ID=21m00Tcm4TlvDq8ikWAM
+
+  # YouTube
+  YOUTUBE_CLIENT_ID=...
+  YOUTUBE_CLIENT_SECRET=...
+  YOUTUBE_REFRESH_TOKEN=...
+
+  # Social
+  X_API_KEY=...
+  X_API_SECRET=...
+  X_ACCESS_TOKEN=...
+  X_ACCESS_SECRET=...
+  INSTAGRAM_USER_ID=...
+  INSTAGRAM_ACCESS_TOKEN=...
+  REEL_VIDEO_URL=https://your-cdn.com/clips/today_clip.mp4
+
+  # Email
+  GMAIL_APP_PASSWORD=...
+
+  # Vercel
+  VERCEL_TOKEN=...
+
+# ============================================================
+# MANUS DAILY CRON SCHEDULE
+# ============================================================
+
+CRON_SCHEDULE:
+  frequency: daily
+  time: "06:00"  # 6AM — runs pipeline, video uploads at 8AM scheduled
+  timezone: "Africa/Johannesburg"
+  command: "python3 run_pipeline.py"
+  on_success: email logivo92@gmail.com
+  on_failure: email logivo92@gmail.com with error log
+
+# ============================================================
+# OUTPUT FOLDER STRUCTURE AFTER FULL RUN
+# ============================================================
+
+# technik-pipeline/
+# ├── output/
+# │   ├── idea.json                    ← today's video concept
+# │   ├── script_path.txt              ← path to script file
+# │   ├── video_id.txt                 ← YouTube video ID
+# │   ├── video_url.txt                ← YouTube live URL
+# │   ├── scripts/
+# │   │   └── script_[title].txt       ← full voiceover script
+# │   ├── audio/
+# │   │   └── voiceover.mp3            ← ElevenLabs output
+# │   ├── renders/
+# │   │   ├── render_briefs.json       ← Midjourney prompt data
+# │   │   └── MIDJOURNEY_PROMPTS.txt   ← human-readable prompts
+# │   ├── thumbnails/
+# │   │   ├── thumbnail_A.jpg          ← upload to YouTube
+# │   │   └── thumbnail_B.jpg          ← A/B test variant
+# │   ├── videos/
+# │   │   └── final_video.mp4          ← assembled video (place here)
+# │   ├── seo/
+# │   │   ├── seo_package.json         ← full SEO data
+# │   │   └── UPLOAD_READY.txt         ← paste-ready for YouTube Studio
+# │   └── social/
+# │       ├── social_copy.json         ← all platform captions
+# │       ├── SOCIAL_READY.txt         ← paste-ready captions
+# │       └── distribution_report.json ← what posted, what failed
+# └── logs/
+#     └── run.log                      ← pipeline execution log
+
+# ============================================================
+# END OF MANUS PIPELINE
+# ============================================================
